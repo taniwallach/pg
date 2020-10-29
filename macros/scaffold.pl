@@ -187,6 +187,20 @@ the first section, you might want the first section to be closed, and
 have the student open it by hand before anwering the questions.  In
 this case, set this value to 0 (it is 1 by default).
 
+=item C<S<< allow_next_section_to_open_on_preview => 0 or 1 >>>
+
+This determines whether Preview My Answers should be allowed to open
+a new section. In the past that would happen, and now this setting
+disables it. Changing the setting to 1 will enable the old behavior.
+
+=item C<S<< prevent_close_by_preview => 0 or 1 >>>
+
+This determines whether Preview My Answers should be allowed to close
+a section which was open before, if the prior answers were changed to be
+incorrect. In the past that would happen, and now this setting
+disables it. Changing the setting to 1 will enable the old behavior.
+
+
 =back
 
 Some useful configurations are:
@@ -305,6 +319,7 @@ sub Begin {
   unshift(@scaffolds,$self); $scaffold = $self;
   $self->{previous_output} = [splice(@{$PG_OUTPUT},0)];  # get output and clear it without changing the array pointer
   $self->{output} = [];                                  # the contents of the scaffold
+  $self->{hidden_last_open} = "ScAfFoLd_${PREFIX}_SC-" . $self->{number} . "_last_open";
   return $self;
 }
 
@@ -324,6 +339,17 @@ sub End {
   $self->open_sections(@{$self->{open}});                              # make the open sections be displayed
   push(@$PG_OUTPUT,@{$self->{previous_output}},@{$self->{output}});    # put back original output and scaffold output
   delete $self->{previous_output}; delete $self->{output};             # don't need these any more
+
+  my $hidden_last_open = $self->{hidden_last_open};
+  my $lastOpen = $self->{open}->[-1];
+  my $addHidden = main::MODES(
+                TeX => "",
+                Latex2HTML => "",
+                HTML => qq!<input id="$hidden_last_open" type=hidden name="$hidden_last_open" value="$lastOpen">!,
+                PTX => "",
+        );
+  push(@$PG_OUTPUT,$addHidden);
+
   shift(@scaffolds); $scaffold = $scaffolds[0];
   return $scaffold;
 }
@@ -351,6 +377,8 @@ sub new {
     is_open => "first_incorrect",
     hardcopy_is_open => "always",                 # open all possible sections in hardcopy
     open_first_section => 1,                      # 0 means don't open any sections initially
+    allow_next_section_to_open_on_preview => 0,   # control whether Preview My Answers should be allowed to open a new section
+    prevent_close_by_preview => 1,                # control whether Preview My Answers should be allowed to close something which was open
     @_,
     number => ++$scaffold_no,                     # the number for this section
     sections => {},                               # the sections within this scaffold
@@ -379,7 +407,7 @@ sub start_section {
 
 #
 #  Add the content from the current section into the scaffold's output
-#  and remove the current_section (so we can tell that no sectionis open).
+#  and remove the current_section (so we can tell that no section is open).
 #
 sub end_section {
   my $self = shift;
@@ -411,11 +439,31 @@ sub section_answers {
       if $answers{$name} && (($answers{$name}{type}||"") eq "essay" || $answers{$name}{"scaffold_force"});
     $evaluator->{rh_ans}{ans_message} = ""; delete $evaluator->{rh_ans}{error_message};
   }
-  foreach my $name (@_) {$self->{scores}{$name} = $answers{$name}{score} if $answers{$name}}
+  my $section_no = $self->{section_no};
+  my $prior_last_open = $main::inputs_ref->{$self->{hidden_last_open}};
+
+  my $myLastSet; # we save the name of the last answer field whose score was set
+  foreach my $name (@_) {
+    if ( $answers{$name} ) {
+      $self->{scores}{$name} = $answers{$name}{score};
+      $myLastSet = $name;
+    }
+  }
+  if ( $myLastSet && $answers{$myLastSet}{isPreview} ) { # Only handle for Preview mode
+    if ( ( $section_no == $prior_last_open ) # Only should consider modifying the last previously open section
+         && ! $self->{allow_next_section_to_open_on_preview} ) {
+      $self->{scores}{$myLastSet} = 0; # This should prevent the next section from opening on Preview if all answers to this section are correct, unless it would open anyway
+    } elsif ( ( $section_no < $prior_last_open ) && $self->{prevent_close_by_preview} ) {
+      # This section was open before - AVOID closing it due to a change in prior sections and a Preview
+      foreach my $name ( @{$self->{ans_names}} ) {
+        $self->{scores}{$name} = 1.0 if ( $answers{$name} ); # to prevent it following sections from being closed
+      }
+    }
+  }
 }
 
 #
-#  Add the given sections to the list of sections to be openned
+#  Add the given sections to the list of sections to be opened
 #  for this scaffold
 #
 sub is_open {
@@ -554,7 +602,7 @@ sub new {
 #  Adds the necessary HTML around the content of the section.
 #
 #    First, determine the is_correct and can_open status and save them.
-#    Then check if the section is to be openned, and if so, add it
+#    Then check if the section is to be opened, and if so, add it
 #    to the open list of the scaffold.
 #
 #    The $PG_OUTPUT variable holds just the contents of this section,
@@ -664,11 +712,11 @@ sub new_answers {
 package Section::can_open;
 
 #
-#  Always can be openned
+#  Always can be opened
 #
 sub always {return 1}
 #
-#  Can be openned when all the answers from previous sections are correct
+#  Can be opened when all the answers from previous sections are correct
 #
 sub when_previous_correct {
   my $section = shift; my $scores = $Scaffold::scaffold->{scores};
@@ -690,7 +738,7 @@ sub incorrect {
   return !$section->{is_correct}
 }
 #
-#  Never can be openned
+#  Never can be opened
 #
 sub never {return 0}
 
