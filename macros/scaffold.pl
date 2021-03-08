@@ -190,16 +190,16 @@ this case, set this value to 0 (it is 1 by default).
 =item C<S<< allow_next_section_to_open_on_preview => 0 or 1 >>>
 
 This determines whether Preview My Answers should be allowed to open
-a new section. In the past that would happen, and now this setting
-disables it. Changing the setting to 1 will enable the old behavior.
+a new section. Set this to 0 to prevent the next section from opening
+after Preview My Answers is clicked (it is 1 by default).
 
 =item C<S<< prevent_close_by_preview => 0 or 1 >>>
 
 This determines whether Preview My Answers should be allowed to close
 a section which was open before, if the prior answers were changed to be
-incorrect. In the past that would happen, and now this setting
-disables it. Changing the setting to 1 will enable the old behavior.
-
+incorrect. By default the setting is 0, so such section closures can
+occur due to a Preview, while when set to 1 sections will not be closed by
+Preview.
 
 =back
 
@@ -341,7 +341,7 @@ sub End {
   delete $self->{previous_output}; delete $self->{output};             # don't need these any more
 
   my $hidden_last_open = $self->{hidden_last_open};
-  my $lastOpen = $self->{open}->[-1];
+  my $lastOpen = $self->{open}[-1] ? $self->{open}[-1] : 0;
   my $addHidden = main::MODES(
                 TeX => "",
                 Latex2HTML => "",
@@ -377,8 +377,8 @@ sub new {
     is_open => "first_incorrect",
     hardcopy_is_open => "always",                 # open all possible sections in hardcopy
     open_first_section => 1,                      # 0 means don't open any sections initially
-    allow_next_section_to_open_on_preview => 0,   # control whether Preview My Answers should be allowed to open a new section
-    prevent_close_by_preview => 1,                # control whether Preview My Answers should be allowed to close something which was open
+    allow_next_section_to_open_on_preview => 1,   # control whether Preview My Answers should be allowed to open a new section
+    prevent_close_by_preview => 0,                # control whether Preview My Answers should be allowed to close something which was open
     @_,
     number => ++$scaffold_no,                     # the number for this section
     sections => {},                               # the sections within this scaffold
@@ -456,7 +456,7 @@ sub section_answers {
     } elsif ( ( $section_no < $prior_last_open ) && $self->{prevent_close_by_preview} ) {
       # This section was open before - AVOID closing it due to a change in prior sections and a Preview
       foreach my $name ( @{$self->{ans_names}} ) {
-        $self->{scores}{$name} = 1.0 if ( $answers{$name} ); # to prevent it following sections from being closed
+        $self->{scores}{$name} = 1.0 if ( $answers{$name} ); # to prevent it and from being closed
       }
     }
   }
