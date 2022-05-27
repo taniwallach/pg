@@ -64,9 +64,9 @@ qr/Factorial can only be taken of \(non-negative\) integers/, 'factorial: can\'t
 
 note('Try taking factorials of variables');
 my $n_fact = Compute("n!");
-is($n_fact->class, "Formula", "factorial: x! is a Formula");
-is($n_fact->type,  "Number",  "factorial: x! is type is Number");
-is($n_fact->eval(n=>5), 120, 'factorial: x! evaluated at x=5 is correct.');
+is($n_fact->class, "Formula", "factorial: n! is a Formula");
+is($n_fact->type,  "Number",  "factorial: n! has type is Number");
+is($n_fact->eval(n=>5), 120, 'factorial: n! evaluated at n=5 is correct.');
 
 # check infinite values
 note('Tests for infinite values');
